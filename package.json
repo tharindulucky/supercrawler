@@ -9,6 +9,7 @@
   "author": "Tharindu Thisarasinghe",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^9.0.2",
     "mysql2": "^2.2.5",
     "sequelize": "^6.6.2"
   }
