@@ -10,4 +10,4 @@ A Simple crawler for tracking down travel related websites
 
 I have included a keywords file with around 800 keywords. And also I added a seeder file to insert some locations. 
 
-The script may take time to fetch data from on sub pages of web pages liked with URLs. 
+The script may take time to fetch data from on sub pages of web pages linked with URLs. 
