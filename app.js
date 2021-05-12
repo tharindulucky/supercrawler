@@ -8,6 +8,7 @@ const stream = require('stream');
 
 const models = require('./models');
 
+//the main function that invokes other functions.
 async function main(){
 
     const urls = [
@@ -29,6 +30,11 @@ async function main(){
 
 }
 
+/*
+This function matches all the content grabbed from websites with the Keywords and the locations available. 
+If a match found, it'll break the loop and write on the file - output.txt. 
+When it finished writing 5 URLs, it stops the process.
+*/
 
 const checkMatchings = async (url) => {
     
@@ -84,7 +90,9 @@ const checkMatchings = async (url) => {
     });
 }
 
-
+/*
+A function for retrieving locations from the database
+*/
 const getLocations = async () => {
     try{
         const locations = await models.Location.findAll({
@@ -99,6 +107,10 @@ const getLocations = async () => {
 }
 
 
+/*
+A simple Synchronous function for writing a file with grabbed URLS, 
+*/
+
 const writeFile = (data) => {
     try{
         dataObj = JSON.parse(data);
@@ -109,13 +121,25 @@ const writeFile = (data) => {
 }
 
 
+/*
+This function featch content of a web page and it seperates
+Contents as h1,h2,h3,h4,h5,h6 and p. And also it grabs hrefs as well.
+
+The all the textual content is merged to an array and returns. 
+
+And it checks for the links. Go to those links and grabs their texts too. 
+This happens recursively until it finds no links left. 
+
+*/
+
 const fetchDataFromURL = async (url) => {
     try {
         const result = await axios.get(url);
         const page_data = cheerio.load(result.data);
 
-        const parasArr = page_data('p').text().split(" ");
+        const parasArr = page_data('p').text().split(" "); //Het paragraph texts
 
+        //Get headings texts
         const h1Text = page_data('h1').text().split(" ");
         const h2Text = page_data('h2').text().split(" ");
         const h3Text = page_data('h3').text().split(" ");
@@ -123,13 +147,15 @@ const fetchDataFromURL = async (url) => {
         const h5Text = page_data('h5').text().split(" ");
         const h6Text = page_data('h6').text().split(" ");
 
+        //grabbing links
         const linksHrefs = page_data('a');
 
+        //Meeging all the texts and create a set.
         const texts = new Set([...parasArr, ...h1Text, ...h2Text, ...h3Text, ...h4Text, ...h5Text, ...h6Text]);
-        const links = new Set(linksHrefs.map((index, elem) => elem.attribs.href));
+        const links = new Set(linksHrefs.map((index, elem) => elem.attribs.href)); //getting only hrefs from links.
 
         links.forEach(async function(link) {
-            if(!link.startsWith("#")){
+            if(!link.startsWith("#")){ // filter hrefs with invalid or ID links.
                 await fetchDataFromURL(link);
             }
         });
