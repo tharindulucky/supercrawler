@@ -14,20 +14,15 @@ const models = require('./models');
 async function main(){
 
     const urls = [
-        'https://sltda.gov.lk/en',
-        'http://www.legalnomads.com/',
-        'http://www.uncorneredmarket.com/',
-        'http://www.alexinwanderland.com/',
-        'http://theblondeabroad.com/',
-        'http://www.heynadine.com/',
-        'http://viewfromthewing.boardingarea.com/',
-        'http://www.wanderingearl.com/'
+        'https://www.npmjs.com/package/elasticlunr'
     ];
+
+    const locations = await getLocations();
 
     fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
 
         const responseToWrite = urls.map(async url => 
-            await checkMatchings(url, storedKeywords)
+            await checkMatchings(url, storedKeywords, locations)
         );
     });
 
@@ -46,28 +41,29 @@ If a match found, it'll break the loop and write on the file - output.txt.
 When it finished writing 5 URLs, it stops the process.
 */
 
-const checkMatchings = async (url, storedKeywords) => {
+const checkMatchings = async (url, storedKeywords, locations) => {
 
+    const locations_as_str = locations.join(" ");
+    const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
     const page_data = await fetchDataFromURL(url);
 
-    const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
     //process.exit();
 
     page_keywords_str = page_data.pageKeywords.join(" ");
 
     var index = elasticlunr(function () {
-        this.addField('title')
-        this.addField('body')
+        this.addField('body');
+        this.setRef('id');
     });
      
     var doc1 = {
         "id": 1,
-        "body": storedKeywords
+        "body": stored_keywrods_para+" "+locations_as_str
     }
      
     index.addDoc(doc1);
-     
-    const rating = index.search(stored_keywrods_para);
+    
+    const rating = index.search(page_keywords_str);
 
 
 console.log(rating);
