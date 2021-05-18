@@ -6,6 +6,7 @@ const readline = require('readline');
 const stream = require('stream');
 const elasticlunr = require('elasticlunr');
 const keywords_extractor = require('keyword-extractor');
+const micromatch = require('micromatch');
 
 
 const models = require('./models');
@@ -14,7 +15,10 @@ const models = require('./models');
 async function main(){
 
     const urls = [
-        'https://www.npmjs.com/package/elasticlunr'
+        'https://www.npmjs.com/package/search-index',
+        'https://sltda.gov.lk/en',
+        'http://www.sidetrackedtravelblog.com/canada',
+        'https://www.anadventurousworld.com/north-america/canada'
     ];
 
     const locations = await getLocations();
@@ -24,15 +28,12 @@ async function main(){
         const responseToWrite = urls.map(async url => 
             await checkMatchings(url, storedKeywords, locations)
         );
+
+        
+        Promise.all(responseToWrite).then(function(results) {
+            console.log(results)
+        })
     });
-
-
-    // Promise.all(promises).then(function(results) {
-    //     console.log(results)
-    // })
-
-
-
 }
 
 /*
@@ -43,13 +44,12 @@ When it finished writing 5 URLs, it stops the process.
 
 const checkMatchings = async (url, storedKeywords, locations) => {
 
-    const locations_as_str = locations.join(" ");
     const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
     const page_data = await fetchDataFromURL(url);
+    const page_keywords_str = page_data.pageKeywords.join(" ");
 
-    //process.exit();
-
-    page_keywords_str = page_data.pageKeywords.join(" ");
+    //Checking if matching locations found.
+    const matched_locations = micromatch(locations, page_data.pageKeywords, { nocase: true });
 
     var index = elasticlunr(function () {
         this.addField('body');
@@ -58,19 +58,25 @@ const checkMatchings = async (url, storedKeywords, locations) => {
      
     var doc1 = {
         "id": 1,
-        "body": stored_keywrods_para+" "+locations_as_str
+        "body": stored_keywrods_para
     }
      
     index.addDoc(doc1);
-    
     const rating = index.search(page_keywords_str);
 
+    //This is a silly logic but trust me it works!
+    //If the score is above 0.01, it means there's a great possibility that it's a travel website.
+    //The cutoff score is based on the keywords we have in our storage. 
 
-console.log(rating);
-
-    process.exit();
-    
-        
+    if(rating[0] && (rating[0].score > 0.01)){
+        const obj_to_write = {
+            url: url,
+            keywords: page_data.pageKeywords.slice(0,6),
+            locations:matched_locations
+        };
+        writeFile(obj_to_write);
+        return page_data.links;
+    }   
 }
 
 /*
@@ -96,8 +102,7 @@ A simple Synchronous function for writing a file with grabbed URLS,
 
 const writeFile = (data) => {
     try{
-        dataObj = JSON.parse(data);
-        fs.appendFileSync('output.txt', "\n===================\n"+"URL: "+dataObj.url+"\n"+"Keywords: "+dataObj.words+"\n"+"Locations: "+dataObj.locations);
+        fs.appendFileSync('output.txt', "\n===================\n"+"URL: "+data.url+"\n"+"Keywords found: "+data.keywords+"\n"+"Locations mentioned: "+data.locations);
     }catch(err) {
         console.log(err);
     }
