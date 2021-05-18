@@ -1,33 +1,53 @@
-const http = require('http');
 const cheerio = require('cheerio');
 const { default: axios } = require('axios');
 const fs = require('fs');
-const readline = require('readline');
-const stream = require('stream');
-
+const elasticlunr = require('elasticlunr');
+const keywords_extractor = require('keyword-extractor');
+const micromatch = require('micromatch');
+const chalk = require('chalk');
 
 const models = require('./models');
+const log = console.log;
+
+let related_website_count = 0; //Simple counter to stop the process when found 5 websites.
+
+const urls = [
+    'https://www.npmjs.com/package/search-index',
+    'https://sltda.gov.lk/en',
+    'http://www.sidetrackedtravelblog.com/canada',
+    'https://www.anadventurousworld.com/north-america/canada',
+    'http://traveltalesfromindia.in/',
+    'https://devilonwheels.com/',
+    'https://lostinswitzerland.com/',
+    'https://www.intrepidtravel.com/en/netherlands',
+    'http://www.visittelluride.com/',
+    'https://theplanetd.com/',
+    'https://onthegrid.city/'
+];
 
 //the main function that invokes other functions.
-async function main(){
+async function main(urls){
 
-    const urls = [
-        'https://sltda.gov.lk/en',
-        'http://www.legalnomads.com/',
-        'http://www.uncorneredmarket.com/',
-        'http://www.alexinwanderland.com/',
-        'http://theblondeabroad.com/',
-        'http://www.heynadine.com/',
-        'http://viewfromthewing.boardingarea.com/',
-        'http://www.wanderingearl.com/'
-    ];
+    log(chalk.cyan('Supercrawler is running...'));
 
-    console.log('App running!');
+    const locations = await getLocations();
 
-    urls.map(url => {
-        checkMatchings(url);
+    //Read keywords storage file asynchronously
+    fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
+
+        log(chalk.greenBright('Reading keywords from the disk, completed!'));
+
+        const responseToWrite = urls.map(async url => {
+
+            return await checkMatchings(url, storedKeywords, locations);
+        });
+
+        Promise.all(responseToWrite).then(function(results) {
+            //console.log(results.flat());
+            main(results.flat());
+        })
+
     });
-
 }
 
 /*
@@ -36,58 +56,54 @@ If a match found, it'll break the loop and write on the file - output.txt.
 When it finished writing 5 URLs, it stops the process.
 */
 
-const checkMatchings = async (url) => {
+const checkMatchings = async (url, storedKeywords, locations) => {
+    try{
+        const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
+        const page_data = await fetchDataFromURL(url);
+
+        if(!page_data)
+            return;
+
+        const page_keywords_str = page_data.pageKeywords.join(" ");
     
-    const pageData = await fetchDataFromURL(url);
-    const locations = await getLocations();
-
-    //Get Keywords from the file
-    var keywords = fs.createReadStream('./keywords.txt');
-    var outstream = new stream;
-    var rl = readline.createInterface(keywords, outstream);
-
-    let keywordsArr = [];
-
-    rl.on('line', function(line) {
-        keywordsArr.push(line);
-    }).on('close', async function() {
-        
-        //Do the magic here!
-
-        let resArr = [];
-        let breakLoopOne = false;
-        for (word of keywordsArr) {
-
-            if(word != ""){
-                
-                for (location of locations) {
-                    
-                    if (Array.from(pageData).includes(word) && Array.from(pageData).includes(location)) {
-
-                        let resObj = {
-                            url: url,
-                            words:word,
-                            locations: location
-                        };
-                    
-                        //I know it's bad practice to put a blocking function here. :-(
-                        writeFile(JSON.stringify(resObj));
-
-                        breakLoopOne = true;
-                        break;
-
-                    }
-                }
-            }
-            if (breakLoopOne) break;
+        //Checking if matching locations found.
+        log(chalk.cyan('Checking location matches...'));
+        const matched_locations = micromatch(locations, page_data.pageKeywords, { nocase: true });
+        log(chalk.cyan('Done location matching!'));
+    
+        log(chalk.cyan('Running keyword score algorithm...'));
+        var index = elasticlunr(function () {
+            this.addField('body');
+            this.setRef('id');
+        });
+         
+        var doc1 = {
+            "id": 1,
+            "body": stored_keywrods_para
         }
-        
-        if(resArr.length >= 5){
-            process.exit();
+         
+        index.addDoc(doc1);
+        const rating = index.search(page_keywords_str, {});
+    
+        //This is a silly logic but trust me it works!
+        //If the score is above 0.01, it means there's a great possibility that it's a travel website.
+        //The cutoff score is based on the keywords we have in our storage. 
+        log(chalk.cyan('Keywords score: '+(rating[0] ? rating[0].score : "N/A")));
+        if(rating[0] && (rating[0].score > 0.01)){
+            related_website_count++
+            
+            const obj_to_write = {
+                url: url,
+                keywords: page_data.pageKeywords.slice(0,6),
+                locations:matched_locations
+            };
+            writeFile(obj_to_write);
+            return Array.from(page_data.links);
         }
-        
-
-    });
+        return [];
+    }catch(err){
+        throw err;
+    } 
 }
 
 /*
@@ -95,6 +111,7 @@ A function for retrieving locations from the database
 */
 const getLocations = async () => {
     try{
+        log(chalk.yellowBright('Reading locations from the DB...'));
         const locations = await models.Location.findAll({
             attributes: [`name`],
             raw : true
@@ -112,9 +129,20 @@ A simple Synchronous function for writing a file with grabbed URLS,
 */
 
 const writeFile = (data) => {
+
+    if(related_website_count > 5){
+        log(chalk.green('\nTask completed!'));
+        process.exit();
+    }
+
     try{
-        dataObj = JSON.parse(data);
-        fs.appendFileSync('output.txt', "\n===================\n"+"URL: "+dataObj.url+"\n"+"Keywords: "+dataObj.words+"\n"+"Locations: "+dataObj.locations);
+        log(chalk.green('Writing to file...'));
+        fs.appendFileSync('output.txt', 
+        "\n===================\n"+
+        "URL: "+data.url+"\n"+
+        "Keywords found: "+data.keywords+"\n"+
+        "Locations mentioned: "+data.locations
+        );
     }catch(err) {
         console.log(err);
     }
@@ -134,11 +162,16 @@ This happens recursively until it finds no links left.
 
 const fetchDataFromURL = async (url) => {
     try {
+
+        log(chalk.cyan('Fetching: '+url));
         const result = await axios.get(url);
+
         const page_data = cheerio.load(result.data);
 
-        const parasArr = page_data('p').text().split(" "); //Het paragraph texts
+        const parasArr = page_data('p').text().split(" ");; //Het paragraph texts
 
+
+        log(chalk.magenta('\nReading content...'));
         //Get headings texts
         const h1Text = page_data('h1').text().split(" ");
         const h2Text = page_data('h2').text().split(" ");
@@ -150,21 +183,28 @@ const fetchDataFromURL = async (url) => {
         //grabbing links
         const linksHrefs = page_data('a');
 
-        //Meeging all the texts and create a set.
-        const texts = new Set([...parasArr, ...h1Text, ...h2Text, ...h3Text, ...h4Text, ...h5Text, ...h6Text]);
-        const links = new Set(linksHrefs.map((index, elem) => elem.attribs.href)); //getting only hrefs from links.
+        const allTextsArr = new Set([...parasArr, ...h1Text, ...h2Text, ...h3Text, ...h4Text, ...h5Text, ...h6Text]);
+        const allLinksArr = new Set(linksHrefs.map((index, elem) => elem.attribs.href)); //getting only href attrs from links.
+        
+        const allTextsStr = [...allTextsArr].join(' ')
 
-        links.forEach(async function(link) {
-            if(!link.startsWith("#")){ // filter hrefs with invalid or ID links.
-                await fetchDataFromURL(link);
-            }
+        log(chalk.yellow('Extracting keywords...'));
+        const pageKeywords = keywords_extractor.extract(allTextsStr,{
+            language:"english",
+            remove_digits: true,
+            return_changed_case:true,
+            remove_duplicates: true
         });
 
-        return texts;
+
+        return {
+            pageKeywords: pageKeywords,
+            links: allLinksArr
+        };
     }catch(err) {
         console.log(err)
     }
 }
 
 
-module.exports = main();
+module.exports = main(urls);
