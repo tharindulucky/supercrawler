@@ -9,24 +9,24 @@ const chalk = require('chalk');
 const models = require('./models');
 const log = console.log;
 
-let related_website_cout = 0; //Simple counter to stop the process when found 5 websites.
+let related_website_count = 0; //Simple counter to stop the process when found 5 websites.
+
+const urls = [
+    'https://www.npmjs.com/package/search-index',
+    'https://sltda.gov.lk/en',
+    'http://www.sidetrackedtravelblog.com/canada',
+    'https://www.anadventurousworld.com/north-america/canada',
+    'http://traveltalesfromindia.in/',
+    'https://devilonwheels.com/',
+    'https://lostinswitzerland.com/',
+    'https://www.intrepidtravel.com/en/netherlands',
+    'http://www.visittelluride.com/',
+    'https://theplanetd.com/',
+    'https://onthegrid.city/'
+];
 
 //the main function that invokes other functions.
-async function main(){
-
-    const urls = [
-        'https://www.npmjs.com/package/search-index',
-        'https://sltda.gov.lk/en',
-        'http://www.sidetrackedtravelblog.com/canada',
-        'https://www.anadventurousworld.com/north-america/canada',
-        'http://traveltalesfromindia.in/',
-        'https://devilonwheels.com/',
-        'https://lostinswitzerland.com/',
-        'https://www.intrepidtravel.com/en/netherlands',
-        'http://www.visittelluride.com/',
-        'https://theplanetd.com/',
-        'https://onthegrid.city/'
-    ];
+async function main(urls){
 
     log(chalk.cyan('Supercrawler is running...'));
 
@@ -35,23 +35,18 @@ async function main(){
     //Read keywords storage file asynchronously
     fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
 
-        log(chalk.greenBright('Reading keywords from the disk completed!'));
+        log(chalk.greenBright('Reading keywords from the disk, completed!'));
 
         const responseToWrite = urls.map(async url => {
-            await checkMatchings(url, storedKeywords, locations)
 
-            if(related_website_cout >= 5){
-                log(chalk.green('\nTask completed!'));
-                process.exit();
-            }
+            return await checkMatchings(url, storedKeywords, locations);
         });
 
-        
         Promise.all(responseToWrite).then(function(results) {
-            console.log(results);
-        }).catch((err) =>{
-            console.log(err);
+            //console.log(results.flat());
+            main(results.flat());
         })
+
     });
 }
 
@@ -95,14 +90,15 @@ const checkMatchings = async (url, storedKeywords, locations) => {
         //The cutoff score is based on the keywords we have in our storage. 
         log(chalk.cyan('Keywords score: '+(rating[0] ? rating[0].score : "N/A")));
         if(rating[0] && (rating[0].score > 0.01)){
-            related_website_cout++
+            related_website_count++
+            
             const obj_to_write = {
                 url: url,
                 keywords: page_data.pageKeywords.slice(0,6),
                 locations:matched_locations
             };
             writeFile(obj_to_write);
-            return page_data.links;
+            return Array.from(page_data.links);
         }
         return [];
     }catch(err){
@@ -133,9 +129,20 @@ A simple Synchronous function for writing a file with grabbed URLS,
 */
 
 const writeFile = (data) => {
+
+    if(related_website_count > 5){
+        log(chalk.green('\nTask completed!'));
+        process.exit();
+    }
+
     try{
         log(chalk.green('Writing to file...'));
-        fs.appendFileSync('output.txt', "\n===================\n"+"URL: "+data.url+"\n"+"Keywords found: "+data.keywords+"\n"+"Locations mentioned: "+data.locations);
+        fs.appendFileSync('output.txt', 
+        "\n===================\n"+
+        "URL: "+data.url+"\n"+
+        "Keywords found: "+data.keywords+"\n"+
+        "Locations mentioned: "+data.locations
+        );
     }catch(err) {
         console.log(err);
     }
@@ -200,4 +207,4 @@ const fetchDataFromURL = async (url) => {
 }
 
 
-module.exports = main();
+module.exports = main(urls);
