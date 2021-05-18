@@ -1,15 +1,15 @@
-const http = require('http');
 const cheerio = require('cheerio');
 const { default: axios } = require('axios');
 const fs = require('fs');
-const readline = require('readline');
-const stream = require('stream');
 const elasticlunr = require('elasticlunr');
 const keywords_extractor = require('keyword-extractor');
 const micromatch = require('micromatch');
-
+const chalk = require('chalk');
 
 const models = require('./models');
+const log = console.log;
+
+let related_website_cout = 0; //Simple counter to stop the process when found 5 websites.
 
 //the main function that invokes other functions.
 async function main(){
@@ -18,20 +18,39 @@ async function main(){
         'https://www.npmjs.com/package/search-index',
         'https://sltda.gov.lk/en',
         'http://www.sidetrackedtravelblog.com/canada',
-        'https://www.anadventurousworld.com/north-america/canada'
+        'https://www.anadventurousworld.com/north-america/canada',
+        'http://traveltalesfromindia.in/',
+        'https://devilonwheels.com/',
+        'https://lostinswitzerland.com/',
+        'https://www.intrepidtravel.com/en/netherlands',
+        'http://www.visittelluride.com/',
+        'https://theplanetd.com/',
+        'https://onthegrid.city/'
     ];
+
+    log(chalk.cyan('Supercrawler is running...'));
 
     const locations = await getLocations();
 
+    //Read keywords storage file asynchronously
     fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
 
-        const responseToWrite = urls.map(async url => 
+        log(chalk.greenBright('Reading keywords from the disk completed!'));
+
+        const responseToWrite = urls.map(async url => {
             await checkMatchings(url, storedKeywords, locations)
-        );
+
+            if(related_website_cout >= 5){
+                log(chalk.green('\nTask completed!'));
+                process.exit();
+            }
+        });
 
         
         Promise.all(responseToWrite).then(function(results) {
-            console.log(results)
+            console.log(results);
+        }).catch((err) =>{
+            console.log(err);
         })
     });
 }
@@ -43,40 +62,52 @@ When it finished writing 5 URLs, it stops the process.
 */
 
 const checkMatchings = async (url, storedKeywords, locations) => {
+    try{
+        const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
+        const page_data = await fetchDataFromURL(url);
 
-    const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
-    const page_data = await fetchDataFromURL(url);
-    const page_keywords_str = page_data.pageKeywords.join(" ");
+        if(!page_data)
+            return;
 
-    //Checking if matching locations found.
-    const matched_locations = micromatch(locations, page_data.pageKeywords, { nocase: true });
-
-    var index = elasticlunr(function () {
-        this.addField('body');
-        this.setRef('id');
-    });
-     
-    var doc1 = {
-        "id": 1,
-        "body": stored_keywrods_para
-    }
-     
-    index.addDoc(doc1);
-    const rating = index.search(page_keywords_str);
-
-    //This is a silly logic but trust me it works!
-    //If the score is above 0.01, it means there's a great possibility that it's a travel website.
-    //The cutoff score is based on the keywords we have in our storage. 
-
-    if(rating[0] && (rating[0].score > 0.01)){
-        const obj_to_write = {
-            url: url,
-            keywords: page_data.pageKeywords.slice(0,6),
-            locations:matched_locations
-        };
-        writeFile(obj_to_write);
-        return page_data.links;
-    }   
+        const page_keywords_str = page_data.pageKeywords.join(" ");
+    
+        //Checking if matching locations found.
+        log(chalk.cyan('Checking location matches...'));
+        const matched_locations = micromatch(locations, page_data.pageKeywords, { nocase: true });
+        log(chalk.cyan('Done location matching!'));
+    
+        log(chalk.cyan('Running keyword score algorithm...'));
+        var index = elasticlunr(function () {
+            this.addField('body');
+            this.setRef('id');
+        });
+         
+        var doc1 = {
+            "id": 1,
+            "body": stored_keywrods_para
+        }
+         
+        index.addDoc(doc1);
+        const rating = index.search(page_keywords_str, {});
+    
+        //This is a silly logic but trust me it works!
+        //If the score is above 0.01, it means there's a great possibility that it's a travel website.
+        //The cutoff score is based on the keywords we have in our storage. 
+        log(chalk.cyan('Keywords score: '+(rating[0] ? rating[0].score : "N/A")));
+        if(rating[0] && (rating[0].score > 0.01)){
+            related_website_cout++
+            const obj_to_write = {
+                url: url,
+                keywords: page_data.pageKeywords.slice(0,6),
+                locations:matched_locations
+            };
+            writeFile(obj_to_write);
+            return page_data.links;
+        }
+        return [];
+    }catch(err){
+        throw err;
+    } 
 }
 
 /*
@@ -84,6 +115,7 @@ A function for retrieving locations from the database
 */
 const getLocations = async () => {
     try{
+        log(chalk.yellowBright('Reading locations from the DB...'));
         const locations = await models.Location.findAll({
             attributes: [`name`],
             raw : true
@@ -102,6 +134,7 @@ A simple Synchronous function for writing a file with grabbed URLS,
 
 const writeFile = (data) => {
     try{
+        log(chalk.green('Writing to file...'));
         fs.appendFileSync('output.txt', "\n===================\n"+"URL: "+data.url+"\n"+"Keywords found: "+data.keywords+"\n"+"Locations mentioned: "+data.locations);
     }catch(err) {
         console.log(err);
@@ -122,11 +155,16 @@ This happens recursively until it finds no links left.
 
 const fetchDataFromURL = async (url) => {
     try {
+
+        log(chalk.cyan('Fetching: '+url));
         const result = await axios.get(url);
+
         const page_data = cheerio.load(result.data);
 
         const parasArr = page_data('p').text().split(" ");; //Het paragraph texts
 
+
+        log(chalk.magenta('\nReading content...'));
         //Get headings texts
         const h1Text = page_data('h1').text().split(" ");
         const h2Text = page_data('h2').text().split(" ");
@@ -143,6 +181,7 @@ const fetchDataFromURL = async (url) => {
         
         const allTextsStr = [...allTextsArr].join(' ')
 
+        log(chalk.yellow('Extracting keywords...'));
         const pageKeywords = keywords_extractor.extract(allTextsStr,{
             language:"english",
             remove_digits: true,

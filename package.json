@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.21.1",
+    "chalk": "^4.1.1",
     "cheerio": "^1.0.0-rc.9",
     "dotenv": "^9.0.2",
     "elasticlunr": "^0.9.5",
