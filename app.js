@@ -4,6 +4,8 @@ const { default: axios } = require('axios');
 const fs = require('fs');
 const readline = require('readline');
 const stream = require('stream');
+const elasticlunr = require('elasticlunr');
+const keywords_extractor = require('keyword-extractor');
 
 
 const models = require('./models');
@@ -22,11 +24,19 @@ async function main(){
         'http://www.wanderingearl.com/'
     ];
 
-    console.log('App running!');
+    fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
 
-    urls.map(url => {
-        checkMatchings(url);
+        const responseToWrite = urls.map(async url => 
+            await checkMatchings(url, storedKeywords)
+        );
     });
+
+
+    // Promise.all(promises).then(function(results) {
+    //     console.log(results)
+    // })
+
+
 
 }
 
@@ -36,58 +46,35 @@ If a match found, it'll break the loop and write on the file - output.txt.
 When it finished writing 5 URLs, it stops the process.
 */
 
-const checkMatchings = async (url) => {
-    
-    const pageData = await fetchDataFromURL(url);
-    const locations = await getLocations();
+const checkMatchings = async (url, storedKeywords) => {
 
-    //Get Keywords from the file
-    var keywords = fs.createReadStream('./keywords.txt');
-    var outstream = new stream;
-    var rl = readline.createInterface(keywords, outstream);
+    const page_data = await fetchDataFromURL(url);
 
-    let keywordsArr = [];
+    const stored_keywrods_para = storedKeywords.replace(/(\r\n|\n|\r)/gm," ");
+    //process.exit();
 
-    rl.on('line', function(line) {
-        keywordsArr.push(line);
-    }).on('close', async function() {
-        
-        //Do the magic here!
+    page_keywords_str = page_data.pageKeywords.join(" ");
 
-        let resArr = [];
-        let breakLoopOne = false;
-        for (word of keywordsArr) {
-
-            if(word != ""){
-                
-                for (location of locations) {
-                    
-                    if (Array.from(pageData).includes(word) && Array.from(pageData).includes(location)) {
-
-                        let resObj = {
-                            url: url,
-                            words:word,
-                            locations: location
-                        };
-                    
-                        //I know it's bad practice to put a blocking function here. :-(
-                        writeFile(JSON.stringify(resObj));
-
-                        breakLoopOne = true;
-                        break;
-
-                    }
-                }
-            }
-            if (breakLoopOne) break;
-        }
-        
-        if(resArr.length >= 5){
-            process.exit();
-        }
-        
-
+    var index = elasticlunr(function () {
+        this.addField('title')
+        this.addField('body')
     });
+     
+    var doc1 = {
+        "id": 1,
+        "body": storedKeywords
+    }
+     
+    index.addDoc(doc1);
+     
+    const rating = index.search(stored_keywrods_para);
+
+
+console.log(rating);
+
+    process.exit();
+    
+        
 }
 
 /*
@@ -137,7 +124,7 @@ const fetchDataFromURL = async (url) => {
         const result = await axios.get(url);
         const page_data = cheerio.load(result.data);
 
-        const parasArr = page_data('p').text().split(" "); //Het paragraph texts
+        const parasArr = page_data('p').text().split(" ");; //Het paragraph texts
 
         //Get headings texts
         const h1Text = page_data('h1').text().split(" ");
@@ -150,17 +137,23 @@ const fetchDataFromURL = async (url) => {
         //grabbing links
         const linksHrefs = page_data('a');
 
-        //Meeging all the texts and create a set.
-        const texts = new Set([...parasArr, ...h1Text, ...h2Text, ...h3Text, ...h4Text, ...h5Text, ...h6Text]);
-        const links = new Set(linksHrefs.map((index, elem) => elem.attribs.href)); //getting only hrefs from links.
+        const allTextsArr = new Set([...parasArr, ...h1Text, ...h2Text, ...h3Text, ...h4Text, ...h5Text, ...h6Text]);
+        const allLinksArr = new Set(linksHrefs.map((index, elem) => elem.attribs.href)); //getting only href attrs from links.
+        
+        const allTextsStr = [...allTextsArr].join(' ')
 
-        links.forEach(async function(link) {
-            if(!link.startsWith("#")){ // filter hrefs with invalid or ID links.
-                await fetchDataFromURL(link);
-            }
+        const pageKeywords = keywords_extractor.extract(allTextsStr,{
+            language:"english",
+            remove_digits: true,
+            return_changed_case:true,
+            remove_duplicates: true
         });
 
-        return texts;
+
+        return {
+            pageKeywords: pageKeywords,
+            links: allLinksArr
+        };
     }catch(err) {
         console.log(err)
     }
