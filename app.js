@@ -14,6 +14,15 @@ let related_website_count = 0; //Simple counter to stop the process when found 5
 const urls = [
     'https://www.npmjs.com/package/search-index',
     'https://sltda.gov.lk/en',
+    'http://www.sidetrackedtravelblog.com/canada',
+    'https://www.anadventurousworld.com/north-america/canada',
+    'http://traveltalesfromindia.in/',
+    'https://devilonwheels.com/',
+    'https://lostinswitzerland.com/',
+    'https://www.intrepidtravel.com/en/netherlands',
+    'http://www.visittelluride.com/',
+    'https://theplanetd.com/',
+    'https://onthegrid.city/'
 ];
 
 //the main function that invokes other functions.
@@ -94,7 +103,7 @@ const checkMatchings = async (url, storedKeywords, locations) => {
                 locations:matched_locations
             };
             writeFile(obj_to_write);
-            return Array.from(page_data.links);
+            return page_data.links;
         }
         return [];
     }catch(err){
@@ -192,14 +201,27 @@ const fetchDataFromURL = async (url) => {
         });
 
 
+        //Cleanup the links by removing invalid links
+        const allLinksArrPlain = Array.from(allLinksArr).map(url => {
+            return isValidWebUrl(url) ? url : ''
+        }).filter(v=>v!='');
+
         return {
             pageKeywords: pageKeywords,
-            links: allLinksArr
+            links: allLinksArrPlain
         };
     }catch(err) {
         throw err;
     }
 }
+
+/*
+A simple function to check if the url is valid. Using regex.
+*/
+function isValidWebUrl(url) {
+    let regEx = /^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/gm;
+    return regEx.test(url);
+ }
 
 
 module.exports = main(urls);
