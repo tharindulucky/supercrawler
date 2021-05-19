@@ -192,7 +192,7 @@ const fetchDataFromURL = async (url) => {
         
         const allTextsStr = [...allTextsArr].join(' ')
 
-        log(chalk.yellow('Extracting keywords...'));
+        log(chalk.yellow('Extracting keywords of '+url+'...'));
         const pageKeywords = keywords_extractor.extract(allTextsStr,{
             language:"english",
             remove_digits: true,
