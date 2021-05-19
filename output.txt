@@ -4,29 +4,17 @@ URL: https://sltda.gov.lk/en
 Keywords found: sri,lanka,tourism,development,authority,sltda
 Locations mentioned: ceylon,Colombo
 ===================
-URL: https://www.anadventurousworld.com/north-america/canada
-Keywords found: home,»,north,america,canadaoh,canada
-Locations mentioned: Canada,Whitehorse,Labrador,City,Miles
-===================
-URL: http://traveltalesfromindia.in/
-Keywords found: member,family,dose,vaccine,age,range
-Locations mentioned: Colombo,Central,City,Vietnam,India
-===================
-URL: https://theplanetd.com/
-Keywords found: popular,searches,thailand,canada,united,states
-Locations mentioned: Thailand,Canada
-===================
-URL: http://www.sidetrackedtravelblog.com/canada
-Keywords found: destinationit's,difficult,categorize,canada,terms,travel
-Locations mentioned: Canada,City,Toronto
+URL: https://sltda.gov.lk/en/statistics
+Keywords found: download,application,sltda's,research,international,relations
+Locations mentioned: Research,Colombo
 ===================
 URL: https://sltda.gov.lk/en
 Keywords found: sri,lanka,tourism,development,authority,sltda
 Locations mentioned: ceylon,Colombo
 ===================
-URL: http://www.sidetrackedtravelblog.com/canada
-Keywords found: destinationit's,difficult,categorize,canada,terms,travel
-Locations mentioned: Canada,City,Toronto
+URL: https://sltda.gov.lk/en/important-notices
+Keywords found: download,application,championing,national,policy,priorities
+Locations mentioned: Central,Colombo
 ===================
 URL: https://sltda.gov.lk/en/about-us
 Keywords found: sltda,official,government,institution,tasked,regularising
@@ -36,6 +24,18 @@ URL: https://sltda.gov.lk/en
 Keywords found: sri,lanka,tourism,development,authority,sltda
 Locations mentioned: ceylon,Colombo
 ===================
-URL: https://sltda.gov.lk/en/register-with-us
-Keywords found: login,online,tourism,business,licensing,service
-Locations mentioned: Bungalow,Spa,Young,Sales,Freshwater,Driver,Colombo,Page
+URL: https://www.anadventurousworld.com/north-america/canada
+Keywords found: home,»,north,america,canadaoh,canada
+Locations mentioned: Canada,Whitehorse,Labrador,City,Miles
+===================
+URL: http://traveltalesfromindia.in/
+Keywords found: member,family,dose,vaccine,age,range
+Locations mentioned: Colombo,Central,City,Vietnam,India
+===================
+URL: http://www.sidetrackedtravelblog.com/canada
+Keywords found: destinationit's,difficult,categorize,canada,terms,travel
+Locations mentioned: Canada,City,Toronto
+===================
+URL: https://theplanetd.com/
+Keywords found: popular,searches,thailand,canada,united,states
+Locations mentioned: Thailand,Canada

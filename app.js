@@ -30,24 +30,29 @@ async function main(urls){
 
     log(chalk.cyan('Supercrawler is running...'));
 
-    const locations = await getLocations();
+    try{
+        const locations = await getLocations();
 
-    //Read keywords storage file asynchronously
-    fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
+        //Read keywords storage file asynchronously
+        fs.readFile("./keywords.txt", "UTF8", function(err, storedKeywords) {
 
-        log(chalk.greenBright('Reading keywords from the disk, completed!'));
+            log(chalk.greenBright('Reading keywords from the disk, completed!'));
 
-        const responseToWrite = urls.map(async url => {
+            const responseToWrite = urls.map(async url => {
 
-            return await checkMatchings(url, storedKeywords, locations);
+                return await checkMatchings(url, storedKeywords, locations);
+            });
+
+            Promise.all(responseToWrite).then(function(results) {
+                //console.log(results.flat());
+                main(results.flat());
+            })
+
         });
-
-        Promise.all(responseToWrite).then(function(results) {
-            //console.log(results.flat());
-            main(results.flat());
-        })
-
-    });
+    }catch(err) {
+        log(chalk.red(err));
+        process.exit();
+    }
 }
 
 /*
@@ -98,11 +103,11 @@ const checkMatchings = async (url, storedKeywords, locations) => {
                 locations:matched_locations
             };
             writeFile(obj_to_write);
-            return Array.from(page_data.links);
+            return page_data.links;
         }
         return [];
     }catch(err){
-        throw err;
+        throw err
     } 
 }
 
@@ -118,8 +123,7 @@ const getLocations = async () => {
         });
         return locations.map(a => a.name);
     }catch(err) {
-        console.log(err);
-        return [];
+        throw err;
     }
 }
 
@@ -197,14 +201,27 @@ const fetchDataFromURL = async (url) => {
         });
 
 
+        //Cleanup the links by removing invalid links
+        const allLinksArrPlain = Array.from(allLinksArr).map(url => {
+            return isValidWebUrl(url) ? url : ''
+        }).filter(v=>v!='');
+
         return {
             pageKeywords: pageKeywords,
-            links: allLinksArr
+            links: allLinksArrPlain
         };
     }catch(err) {
-        console.log(err)
+        throw err;
     }
 }
+
+/*
+A simple function to check if the url is valid. Using regex.
+*/
+function isValidWebUrl(url) {
+    let regEx = /^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/gm;
+    return regEx.test(url);
+ }
 
 
 module.exports = main(urls);
